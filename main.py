@@ -14,8 +14,8 @@ CHUNK_SIZE = 16
 CHUNK_PX = CHUNK_SIZE * TILE_SIZE
 RENDER_DISTANCE = 3
 SEED = 1024
-WALK_SPEED = 0.06
-SPRINT_SPEED = 0.14
+WALK_SPEED = 0.04
+SPRINT_SPEED = 0.07
 ROTATION_SPEED = 0.15
 player_angle = 0.0
 player_grid_x = 0
@@ -52,10 +52,11 @@ class PlayerAnimator:
         self.last_update = 0
         self.is_moving = False
         
-    def update(self, is_moving):
+    def update(self, is_moving, speed_multiplier=1.0):
         self.is_moving = is_moving
         now = pygame.time.get_ticks()
-        if is_moving and now - self.last_update > self.frame_duration:
+        effective_duration = self.frame_duration / speed_multiplier
+        if is_moving and now - self.last_update > effective_duration:
             self.current_frame = (self.current_frame + 1) % len(self.walk_frames)
             self.last_update = now
         elif not is_moving:
@@ -227,7 +228,7 @@ while True:
     player_angle += angle_diff * ROTATION_SPEED
     player_angle %= 360
     is_moving = (abs(diff_x) > 1.0 or abs(diff_y) > 1.0)
-    player_animator.update(is_moving)
+    player_animator.update(is_moving, speed_multiplier=1.0 if not is_sprinting else SPRINT_SPEED/WALK_SPEED)
     rotated_player = player_animator.get_frame(player_angle)
     player_rect = rotated_player.get_rect(center=(
         player_pixel_x + cam_x + TILE_SIZE / 2,
