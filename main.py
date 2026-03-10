@@ -30,7 +30,7 @@ class PlayerAnimator:
     def __init__(self, base_path, fallback_color, tile_size, fps=10):
         self.tile_size = tile_size
         self.fps = fps
-        self.frame_duration = 1234 // fps
+        self.frame_duration = 1024 // fps
         idle_path = f"{base_path}_idle.png"
         self.idle_frame = load_texture(idle_path, fallback_color)
         self.walk_frames = []
@@ -59,8 +59,6 @@ class PlayerAnimator:
         if is_moving and now - self.last_update > effective_duration:
             self.current_frame = (self.current_frame + 1) % len(self.walk_frames)
             self.last_update = now
-        elif not is_moving:
-            self.current_frame = 0
 
     def get_frame(self, angle):
         base = self.walk_frames[self.current_frame] if self.is_moving else self.idle_frame
@@ -162,23 +160,17 @@ def update_chunks():
 keys_pressed = set()
 
 def process_input():
-    global target_grid_x, target_grid_y
     dx, dy = 0, 0
     is_sprinting = pygame.K_LSHIFT in keys_pressed or pygame.K_RSHIFT in keys_pressed
     if pygame.K_UP in keys_pressed or pygame.K_w in keys_pressed:    dy -= 1
     if pygame.K_DOWN in keys_pressed or pygame.K_s in keys_pressed:  dy += 1
     if pygame.K_LEFT in keys_pressed or pygame.K_a in keys_pressed:  dx -= 1
     if pygame.K_RIGHT in keys_pressed or pygame.K_d in keys_pressed: dx += 1
-    at_target = (abs(player_grid_x - target_grid_x) < 0.1 and
-                 abs(player_grid_y - target_grid_y) < 0.1)
-    if at_target and (dx != 0 or dy != 0):
-        if dx != 0 and dy != 0:
-            length = math.sqrt(dx * dx + dy * dy)
-            dx = round(dx / length)
-            dy = round(dy / length)
-        target_grid_x += dx
-        target_grid_y += dy
-    return is_sprinting
+    if dx != 0 and dy != 0:
+        length = math.sqrt(dx * dx + dy * dy)
+        dx /= length
+        dy /= length
+    return dx, dy, is_sprinting
 
 font = pygame.font.SysFont("Courier New", 14)
 last_chunk_update = (None, None)
@@ -194,19 +186,12 @@ while True:
                 pygame.quit(); sys.exit()
         if event.type == pygame.KEYUP:
             keys_pressed.discard(event.key)
-    is_sprinting = process_input()
+        input_dx, input_dy, is_sprinting = process_input()
     speed = SPRINT_SPEED if is_sprinting else WALK_SPEED
-    tpx = target_grid_x * TILE_SIZE
-    tpy = target_grid_y * TILE_SIZE
-    diff_x = tpx - player_pixel_x
-    diff_y = tpy - player_pixel_y
-    if abs(diff_x) > 0.1 or abs(diff_y) > 0.1:
-        player_pixel_x += diff_x * speed
-        player_pixel_y += diff_y * speed
-        if abs(diff_x) < 1: player_pixel_x = tpx
-        if abs(diff_y) < 1: player_pixel_y = tpy
-    player_grid_x = round(player_pixel_x / TILE_SIZE)
-    player_grid_y = round(player_pixel_y / TILE_SIZE)
+    player_pixel_x += input_dx * speed * TILE_SIZE
+    player_pixel_y += input_dy * speed * TILE_SIZE
+    player_grid_x = math.floor(player_pixel_x / TILE_SIZE)
+    player_grid_y = math.floor(player_pixel_y / TILE_SIZE)
     if (player_grid_x, player_grid_y) != last_chunk_update:
         last_chunk_update = (player_grid_x, player_grid_y)
         update_chunks()
@@ -217,17 +202,16 @@ while True:
         world_px = cx * CHUNK_PX
         world_py = cy * CHUNK_PX
         screen.blit(surf, (world_px + cam_x, world_py + cam_y))
-    diff_x = (target_grid_x * TILE_SIZE) - player_pixel_x
-    diff_y = (target_grid_y * TILE_SIZE) - player_pixel_y
-    target_angle = player_angle
-    if abs(diff_x) > 0.5 or abs(diff_y) > 0.5:
-        raw_angle = math.degrees(math.atan2(diff_y, diff_x)) + 90
+    if abs(input_dx) > 0.1 or abs(input_dy) > 0.1:
+        raw_angle = math.degrees(math.atan2(input_dy, input_dx)) + 90
         target_angle = round(raw_angle / 45) * 45
         target_angle %= 360
+    else:
+        target_angle = player_angle
     angle_diff = (target_angle - player_angle + 180) % 360 - 180
     player_angle += angle_diff * ROTATION_SPEED
     player_angle %= 360
-    is_moving = (abs(diff_x) > 1.0 or abs(diff_y) > 1.0)
+    is_moving = (abs(input_dx) > 0.1 or abs(input_dy) > 0.1)
     player_animator.update(is_moving, speed_multiplier=1.0 if not is_sprinting else SPRINT_SPEED/WALK_SPEED)
     rotated_player = player_animator.get_frame(player_angle)
     player_rect = rotated_player.get_rect(center=(
