@@ -51,6 +51,8 @@ class PlayerAnimator:
         self.current_frame = 0
         self.last_update = 0
         self.is_moving = False
+        self.idle_transition_counter = 0
+        self.idle_transition_delay = 5
         
     def update(self, is_moving, speed_multiplier=1.0):
         self.is_moving = is_moving
@@ -61,7 +63,16 @@ class PlayerAnimator:
             self.last_update = now
 
     def get_frame(self, angle):
-        base = self.walk_frames[self.current_frame] if self.is_moving else self.idle_frame
+        if self.is_moving:
+            base = self.walk_frames[self.current_frame]
+        else:
+            valid_idle_frames = [0, 4, 8]
+            if self.current_frame not in valid_idle_frames:
+                self.idle_transition_counter += 1
+                if self.idle_transition_counter >= self.idle_transition_delay:
+                    self.current_frame = (self.current_frame + 1) % len(self.walk_frames)
+                    self.idle_transition_counter = 0
+            base = self.walk_frames[self.current_frame]
         return pygame.transform.rotate(base, -angle)
 
 def load_texture(path, fallback_color=(46, 139, 87)):
