@@ -31,8 +31,7 @@ class PlayerAnimator:
         self.tile_size = tile_size
         self.fps = fps
         self.frame_duration = 1024 // fps
-        idle_path = f"{base_path}_idle.png"
-        self.idle_frame = load_texture(idle_path, fallback_color)
+        self.idle_frame = load_texture(f"{base_path}_walk_0.png", fallback_color)
         self.walk_frames = []
         frame_idx = 0
         while True:
