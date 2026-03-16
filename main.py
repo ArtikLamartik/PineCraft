@@ -1,6 +1,7 @@
 import pygame
-import sys
+import random
 import math
+import sys
 import os
 
 pygame.init()
@@ -52,7 +53,7 @@ class PlayerAnimator:
         self.is_moving = False
         self.idle_transition_counter = 0
         self.idle_transition_delay = 5
-        
+
     def update(self, is_moving, speed_multiplier=1.0):
         self.is_moving = is_moving
         now = pygame.time.get_ticks()
@@ -90,6 +91,8 @@ grass_top_flowers_blue_texture = load_texture("textures/blocks/grass_top_flowers
 grass_top_flowers_purple_texture = load_texture("textures/blocks/grass_top_flowers_purple.png")
 grass_top_flowers_red_texture = load_texture("textures/blocks/grass_top_flowers_red.png")
 grass_top_flowers_yellow_texture = load_texture("textures/blocks/grass_top_flowers_yellow.png")
+mud_texture = load_texture("textures/blocks/mud.png")
+water_texture = load_texture("textures/blocks/water.png")
 player_animator = PlayerAnimator(
     base_path="textures/player/player",
     fallback_color=(255, 100, 100),
@@ -101,6 +104,18 @@ grass_rotated = {
     90:  pygame.transform.rotate(grass_top_texture, -90),
     180: pygame.transform.rotate(grass_top_texture, 180),
     270: pygame.transform.rotate(grass_top_texture, 90),
+}
+mud_rotated = {
+    0:   mud_texture,
+    90:  pygame.transform.rotate(mud_texture, -90),
+    180: pygame.transform.rotate(mud_texture, 180),
+    270: pygame.transform.rotate(mud_texture, 90),
+}
+water_rotated = {
+    0:   water_texture,
+    90:  pygame.transform.rotate(water_texture, -90),
+    180: pygame.transform.rotate(water_texture, 180),
+    270: pygame.transform.rotate(water_texture, 90),
 }
 
 def mulberry32(seed):
@@ -118,6 +133,25 @@ def hash_coords(x, y):
     h = SEED ^ ((x * 374761393) & 0xFFFFFFFF) ^ ((y * 668265263) & 0xFFFFFFFF)
     h = ((h ^ (h >> 13)) * 1274126177) & 0xFFFFFFFF
     return h ^ (h >> 16)
+
+def value_noise_2d(x, y, seed=SEED):
+    def smoothstep(t):
+        return t * t * (3.0 - 2.0 * t)
+    def hash_coord(ix, iy):
+        n = (seed ^ (ix * 374761393) ^ (iy * 668265263)) & 0xFFFFFFFF
+        n = ((n ^ (n >> 13)) * 1274126177) & 0xFFFFFFFF
+        return ((n ^ (n >> 16)) & 0xFFFFFFFF) / 4294967296.0
+    x0, y0 = int(math.floor(x)), int(math.floor(y))
+    x1, y1 = x0 + 1, y0 + 1
+    fx, fy = x - x0, y - y0
+    fx_s, fy_s = smoothstep(fx), smoothstep(fy)
+    v00 = hash_coord(x0, y0) * 2.0 - 1.0
+    v10 = hash_coord(x1, y0) * 2.0 - 1.0
+    v01 = hash_coord(x0, y1) * 2.0 - 1.0
+    v11 = hash_coord(x1, y1) * 2.0 - 1.0
+    v0 = v00 * (1 - fx_s) + v10 * fx_s
+    v1 = v01 * (1 - fx_s) + v11 * fx_s
+    return v0 * (1 - fy_s) + v1 * fy_s
 
 def chunk_key(cx, cy):
     return (cx, cy)
@@ -148,6 +182,22 @@ def create_chunk_surface(cx, cy):
                 tile = grass_rotated[rot]
             else:
                 tile = grass_top_texture
+            NOISE_SCALE_ALPHA = 0.1
+            noise_val = value_noise_2d(world_x * NOISE_SCALE_ALPHA, world_y * NOISE_SCALE_ALPHA)
+            alpha_val = int(195 + noise_val * 60)
+            if alpha_val < 190:
+                if rand_val < 0.5:
+                    rot = [0, 90, 180, 270][int(rng() * 4)]
+                    tile = mud_rotated[rot]
+                else:
+                    tile = mud_texture
+            if alpha_val < 185:
+                if rand_val < 0.5:
+                    rot = [0, 90, 180, 270][int(rng() * 4)]
+                    tile = water_rotated[rot]
+                else:
+                    tile = water_texture
+            tile.set_alpha(alpha_val)
             surf.blit(tile, (tx * TILE_SIZE, ty * TILE_SIZE))
     return surf
 
